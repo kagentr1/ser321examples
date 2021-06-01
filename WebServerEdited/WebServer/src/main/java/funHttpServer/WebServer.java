@@ -8,7 +8,7 @@ You can also do some other simple GET requests:
 4) /multiply?num1=3&num2=4 multiplies the two inputs and responses with the result
 5) /github?query=users/amehlhase316/repos (or other GitHub repo owners) will lead to receiving
    JSON which will for now only be printed in the console. See the todo below
-   
+
 The reading of the request is done "manually", meaning no library that helps making things a 
 little easier is used. This is done so you see exactly how to pars the request and 
 write a response back
@@ -25,7 +25,6 @@ import java.util.Random;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.nio.charset.Charset;
-import org.json.*;
 
 class WebServer {
   public static void main(String args[]) {
@@ -119,6 +118,7 @@ class WebServer {
           // extract the request, basically everything after the GET up to HTTP/1.1
           request = line.substring(firstSpace + 2, secondSpace);
         }
+
       }
       System.out.println("FINISHED PARSING HEADER\n");
 
@@ -194,86 +194,118 @@ class WebServer {
             builder.append("File not found: " + file);
           }
         } else if (request.contains("multiply?")) {
-			if (request.matches("^multiply\\?num1=\\d*\\&num2=\\d*$")) {
+          // This multiplies two numbers, there is NO error handling, so when
+          // wrong data is given this just crashes
 
-				Map<String, String> query_pairs = new LinkedHashMap<String, String>();
-				// extract path parameters
-				query_pairs = splitQuery(request.replace("multiply?", ""));
+          Map<String, String> query_pairs = new LinkedHashMap<String, String>();
+          // extract path parameters
+          query_pairs = splitQuery(request.replace("multiply?", ""));
 
-				// extract required fields from parameters
-				Integer num1 = Integer.parseInt(query_pairs.get("num1"));
-				Integer num2 = Integer.parseInt(query_pairs.get("num2"));
+          // extract required fields from parameters
+          Integer num1 = Integer.parseInt(query_pairs.get("num1"));
+          Integer num2 = Integer.parseInt(query_pairs.get("num2"));
 
-				// do math
-				Integer result = num1 * num2;
+          // do math
+          Integer result = num1 * num2;
 
-				// Generate response
-				builder.append("HTTP/1.1 200 OK\n");
-				builder.append("Content-Type: text/html; charset=utf-8\n");
-				builder.append("\n");
-				builder.append("Result is: " + result);
-			} else {
-				// Error handling
-				builder.append("HTTP/1.1 400 Bad Request\n");
-				builder.append("Content-Type: text/html; charset=utf-8\n");
-				builder.append("\n");
-				builder.append("Could not multiply. Make sure format matches \"multiply?num1=#&num2=#\"");
-			}
+          // Generate response
+          builder.append("HTTP/1.1 200 OK\n");
+          builder.append("Content-Type: text/html; charset=utf-8\n");
+          builder.append("\n");
+          builder.append("Result is: " + result);
 
-        } else if (request.contains("github?")) {        
-			// pulls the query from the request and runs it with GitHub's REST API
-			// check out https://docs.github.com/rest/reference/
+          // TODO: Include error handling here with a correct error code and
+          // a response that makes sense
+		  // -*-*-*- this section is based on lines 212-215
+		  builder.append("HTTP/1.1 400 Bad Request\n");
+          builder.append("Content-Type: text/html; charset=utf-8\n");
+          builder.append("\n");
+          builder.append("The result does not contain two integers.");
+
+        } else if (request.contains("github?")) {
+          // pulls the query from the request and runs it with GitHub's REST API
+          // check out https://docs.github.com/rest/reference/
+          //
+          // HINT: REST is organized by nesting topics. Figure out the biggest one first,
+          //     then drill down to what you care about
+          // "Owner's repo is named RepoName. Example: find RepoName's contributors" translates to
+          //     "/repos/OWNERNAME/REPONAME/contributors"
+
+		try {
+          Map<String, String> query_pairs = new LinkedHashMap<String, String>();
+          query_pairs = splitQuery(request.replace("github?", ""));
+          String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
+          System.out.println(json);
+
+          builder.append("Check the todos mentioned in the Java source file");
+          // TODO: Parse the JSON returned by your fetch and create an appropriate
+          // response
+          // and list the owner name, owner id and name of the public repo on your webpage, e.g.
+          // amehlhase, 46384989 -> memoranda
+          // amehlhase, 46384989 -> ser316examples
+          // amehlhase, 46384989 -> test316
 		  
-			try {
-				Map<String, String> query_pairs = new LinkedHashMap<String, String>();
-				query_pairs = splitQuery(request.replace("github?", ""));
-				String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
+		  // INFORMATION GETS SAVED AS JSON ARRAY
+		  // ADDED JSONARRAYS TO SAVE THE JSONOBJECTS AS ARRAYS AND CREATE A NEW ARRAY
+		  JSONArray repoArray = new JSONArray(json);
+		  JSONArray newjSON = new JSONArray();
+		  
+		  
+		  
+		  
+		  
+		  
+		  builder.append("content-length: " + repoArray.length());
+		  String[] resultArray = new String[(repoArray.length() * 3)];
 
-				// saving it as JSON array
-				JSONArray repoArray = new JSONArray(json);
+		  // PARSE THROUGH ALL OF THE ITEMS IN AN ARRAY OF EACH REPO OF THE USER
+		  // FOR AN INTEGER I = 0, REPO IS EQUAL TO A SINGLE REPOSITORY. OWNER IS EQUAL TO THE 
+		  // GITHUB USER LISTED IN THE JSONOBJECT.
+		  for(int i=0; i<repoArray.length(); i++){
 
-				// new JSON
-				JSONArray newjSON = new JSONArray();
-				
-				String[] resultArray = new String[(repoArray.length() * 3)];
-
-				// repos of user = array
-				for(int i=0; i<repoArray.length(); i++){
-
-					// JSON object = 1 repo 
-					JSONObject repo = repoArray.getJSONObject(i);
-
-					// owner = GitHub user listed in JSON object
-					JSONObject owner = repo.getJSONObject("owner");
-
-					// get GitHub username
-					String ownername = owner.getString("login");
-					//System.out.println(ownername + ",  ");
-					resultArray[(i * 3)] = (ownername + ",  ");
-
-					// get GitHub user id
-					int ownerId = owner.getInt("id");
-					resultArray[(i * 3) + 1] = (ownerId + "  ->  ");
-
-					// get repo name
-					String repoName = repo.getString("name");
-					resultArray[(i * 3) + 2] = (repoName + "<br>");
-				}
-				
-				builder.append("HTTP/1.1 200 OK\n");
-				builder.append("Content-Type: text/html; charset=utf-8\n");
-				builder.append("\n");
-				builder.append("Owner Name&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Owner ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Public Repo Name<br>");
-
-				for (int i = 0; i < resultArray.length; i++) {
-					builder.append(resultArray[i]);
-				}
-
-			} catch (Exception e) {
-				System.out.println("exception: " + e.getMessage());
-				e.printStackTrace();
-				builder.append("HTTP/1.1 400 Bad Request\n");
+			  // EACH OBJECT IS ITS OWN REPO
+			  JSONObject repo = repoArray.getJSONObject(i);
+			  JSONObject owner = repo.getJSONObject("owner");
+			  builder.append("\n");
+			  // LOGIN REFERS TO THE USERNAME
+			  // OWNER NAME HAS TO BE EQUAL TO THE NAME OF THE OWNER OF THE REPO WHICH IS EQUAL TO THE LOGIN 
+			  // INFORMATION ON GITHUB
+			  String ownername = owner.getString("login");
+			  builder.append("\n");
+			  // , SYMBOL WILL BE BETWEEN OWNER LOGIN AND OWNER ID
+			  resultArray[(i * 3)] = (ownername + ",  ");
+			  // OWNER ID
+			  int ownerId = owner.getInt("id");
+			  builder.append("\n");
+			  // -> SYMBOL WILL BE SEEN BETWEEN ID AND REPO NAME
+			  resultArray[(i * 3) + 1] = (ownerId + "  ->  ");
+			  builder.append("\n");
+			  // REPO NAME
+			  String repoName = repo.getString("name");
+			  resultArray[(i * 3) + 2] = (repoName + "<br>");
+			  builder.append("\n");
 			}
+			
+			//OKAY HANDLING
+			builder.append("HTTP/1.1 200 ok\n");
+			builder.append("Content-Type: text/html; charset=utf-8\n");
+			builder.append("\n");
+			
+			
+			
+			
+			
+			
+
+			for (int i = 0; i < resultArray.length; i++) {
+				builder.append(resultArray[i]);
+			}
+
+		} catch (Exception e) {
+			System.out.println("exception: " + e.getMessage());
+			e.printStackTrace();
+			builder.append("HTTP/1.1 400 Bad Request\n");
+		}
 
         } else {
           // if the request is not recognized at all
@@ -286,6 +318,8 @@ class WebServer {
 
         // Output
         response = builder.toString().getBytes();
+		
+		
       }
     } catch (IOException e) {
       e.printStackTrace();
@@ -400,3 +434,5 @@ class WebServer {
     return sb.toString();
   }
 }
+
+
